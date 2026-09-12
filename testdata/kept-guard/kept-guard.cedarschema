@@ -1,0 +1,13 @@
+// The authorizer always sets `nick` and the tag `t` on a User.
+@semantics("if principal is User then principal has nick && principal.hasTag(\"t\") else true")
+entity User = {
+    active: Bool,
+    nick?: String,
+} tags Long;
+entity Document = {
+    int: Long,
+};
+action get appliesTo {
+    principal: User,
+    resource: Document,
+};

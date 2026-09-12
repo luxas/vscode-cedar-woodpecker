@@ -1,3 +1,12 @@
+## Unreleased
+
+- Policy simplifier (opt-in, `cedar.policySimplifier.enabled`): after a policy document validates,
+  the extension runs the Cedar CLI's `cedar lint --json` (built with the `analyze` feature; needs
+  cvc5) and shows warnings for expressions that are statically never true, never false or always
+  an error in every request environment, under the schema's `@semantics("<Cedar expression>")`
+  assumptions. A `has`/`hasTag` guard a later access relies on is never reported as always true.
+  Settings: `cedar.policySimplifier.command` (default `cedar`), `cedar.policySimplifier.cvc5Path`.
+
 ## v0.10.4 (Preview) 2026-07-06
 
 - Update to Cedar SDK 4.11.2

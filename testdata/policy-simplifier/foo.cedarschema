@@ -1,0 +1,16 @@
+entity User = {
+    username: String,
+};
+// The authorizer never populates `request` for a get: every `resource has request`
+// under `action == Action::"get"` is statically false.
+@semantics("if action == Action::\"get\" then !(resource has request) else true")
+entity Document = {
+    int: Long,
+    request?: {
+        kind: String,
+    },
+};
+action get appliesTo {
+    principal: User,
+    resource: Document,
+};

@@ -16,6 +16,12 @@ import {
   detectSchemaDoc,
 } from './fileutil';
 import { parseCedarPoliciesDoc } from './parser';
+import {
+  runSimplifier,
+  simplifierDiagnostics,
+  simplifierSettings,
+  SimplifierSettings,
+} from './simplify';
 
 type ValidationCacheItem = {
   version: number;
@@ -213,6 +219,39 @@ export const validateTextDocument = (
   }
 };
 
+/** The document versions with a simplifier run in flight, by document. */
+const simplifying = new Map<string, number>();
+
+const simplifyInBackground = (
+  settings: SimplifierSettings,
+  schemaDoc: vscode.TextDocument,
+  cedarDoc: vscode.TextDocument,
+  diagnostics: vscode.Diagnostic[],
+  diagnosticCollection: vscode.DiagnosticCollection
+) => {
+  const key = cedarDoc.uri.toString();
+  const version = cedarDoc.version;
+  if (simplifying.get(key) === version) {
+    return;
+  }
+  simplifying.set(key, version);
+  runSimplifier(settings, schemaDoc, cedarDoc.getText())
+    .then((findings) => {
+      if (cedarDoc.version !== version || findings.length === 0) {
+        return;
+      }
+      diagnosticCollection.set(cedarDoc.uri, [
+        ...diagnostics,
+        ...simplifierDiagnostics(cedarDoc, findings),
+      ]);
+    })
+    .finally(() => {
+      if (simplifying.get(key) === version) {
+        simplifying.delete(key);
+      }
+    });
+};
+
 export const validateCedarDoc = async (
   cedarDoc: vscode.TextDocument,
   diagnosticCollection: vscode.DiagnosticCollection,
@@ -233,6 +272,9 @@ export const validateCedarDoc = async (
   );
   try {
     let success = syntaxResult.success;
+    // the schema the policies validated against, for the simplifier
+    let validatedSchemaDoc: vscode.TextDocument | undefined = undefined;
+    let policiesValid = true;
     if (syntaxResult.errors) {
       addSyntaxDiagnosticErrors(diagnostics, syntaxResult.errors, cedarDoc);
     } else {
@@ -240,6 +282,7 @@ export const validateCedarDoc = async (
       if (schemaDoc) {
         if (validateSchemaDoc(schemaDoc, diagnosticCollection, userInitiated)) {
           validationCache.associateSchemaWithDoc(schemaDoc, cedarDoc);
+          validatedSchemaDoc = schemaDoc;
 
           parseCedarPoliciesDoc(cedarDoc, (policyRange, policyText) => {
             let policyResult: cedar.ValidatePolicyResult;
@@ -266,6 +309,7 @@ export const validateCedarDoc = async (
                 );
               }
               if (policyResult.success === false && policyResult.errors) {
+                policiesValid = false;
                 addPolicyResultMessages(
                   diagnostics,
                   policyResult.errors,
@@ -285,6 +329,20 @@ export const validateCedarDoc = async (
     diagnosticCollection.set(cedarDoc.uri, diagnostics);
 
     validationCache.store(cedarDoc, success);
+
+    // the policy simplifier (opt-in): only on documents that validate. It
+    // drives an SMT solver, so it runs in the background: the diagnostics
+    // are added when it finishes, unless the document changed meanwhile.
+    const settings = simplifierSettings(cedarDoc.uri);
+    if (settings.enabled && validatedSchemaDoc && policiesValid) {
+      simplifyInBackground(
+        settings,
+        validatedSchemaDoc,
+        cedarDoc,
+        diagnostics,
+        diagnosticCollection
+      );
+    }
 
     return Promise.resolve(success);
   } finally {
