@@ -279,6 +279,21 @@
           "type": "boolean",
           "default": true,
           "description": "Auto detect Cedar schema file used for policy validation."
+        },
+        "cedar.policySimplifier.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Warn about expressions that are statically true or false (or always an error) in every request environment, pinpointed with the symbolic evaluator. Needs the Cedar CLI built with the `analyze` feature (`cedar lint`) and cvc5."
+        },
+        "cedar.policySimplifier.command": {
+          "type": "string",
+          "default": "cedar",
+          "description": "The Cedar CLI (a path, or a name on PATH), built with the `analyze` feature; its `lint` command is the policy simplifier."
+        },
+        "cedar.policySimplifier.cvc5Path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the cvc5 solver used by the policy simplifier (empty: cvc5 on PATH, or the CVC5 environment variable)."
         }
       }
     }

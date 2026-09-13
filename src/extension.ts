@@ -186,6 +186,15 @@ export async function activate(context: vscode.ExtensionContext) {
           // no need to await to invoke vscode.window.showErrorMessage
           getSchemaTextDocument();
         }
+        if (e.affectsConfiguration('cedar.policySimplifier')) {
+          // re-validate (bypassing the cache) so the simplifier runs, or
+          // its warnings go away, on the open documents
+          vscode.window.visibleTextEditors.forEach((editor) => {
+            if (editor.document.languageId === 'cedar') {
+              validateCedarDoc(editor.document, diagnosticCollection, true);
+            }
+          });
+        }
       }
     )
   );
